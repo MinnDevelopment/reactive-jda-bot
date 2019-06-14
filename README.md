@@ -1,6 +1,6 @@
 
 [jda-reactor]: https://github.com/MinnDevelopment/jda-reactor
-[command]: https://github.com/MinnDevelopment/blob/master/src/main/kotlin/club/minnced/bot/command
+[command]: https://github.com/MinnDevelopment/reactive-jda-bot/tree/master/src/main/kotlin/club/minnced/bot/command
 [Mono]: https://projectreactor.io/docs/core/release/api/reactor/core/publisher/Mono.html
 
 ## Reactive JDA Bot
