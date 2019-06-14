@@ -18,6 +18,7 @@ package club.minnced.bot
 
 import club.minnced.bot.command.onAvatar
 import club.minnced.bot.command.onPing
+import club.minnced.bot.command.onPurge
 import club.minnced.bot.command.onSoftban
 import club.minnced.jda.reactor.ReactiveEventManager
 import club.minnced.jda.reactor.on
@@ -68,6 +69,7 @@ fun onGuildCommand(event: GuildMessageReceivedEvent) {
     val command = parts[0].substring(2).toLowerCase()
     when (command) {
         "softban" -> onSoftban(parts.getOrNull(1), event)
+        "purge" -> onPurge(parts.getOrNull(1), event)
     }
 }
 

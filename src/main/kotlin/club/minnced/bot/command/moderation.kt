@@ -17,9 +17,11 @@
 package club.minnced.bot.command
 
 import club.minnced.bot.findUser
+import club.minnced.jda.reactor.asFlux
 import club.minnced.jda.reactor.asMono
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.events.message.guild.GuildMessageReceivedEvent
+import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.core.publisher.switchIfEmpty
 import reactor.core.publisher.toMono
@@ -35,6 +37,11 @@ fun onSoftban(arg: String?, event: GuildMessageReceivedEvent) {
     if (!event.member!!.hasPermission(Permission.KICK_MEMBERS)) {
         // We only want authorized people to use this command.
         return event.channel.sendMessage("You lack the permission to kick members in this server!").queue()
+    }
+
+    // Check that we have permissions for this
+    if (!event.guild.selfMember.hasPermission(Permission.BAN_MEMBERS)) {
+        return event.channel.sendMessage("I'm unable to ban members, please grant me permission to ban members!").queue()
     }
 
     // Either the user is mentioned or we need to look them up
@@ -59,6 +66,48 @@ fun onSoftban(arg: String?, event: GuildMessageReceivedEvent) {
             event.channel.sendMessage("Cannot softban user!").queue()
             Mono.empty()
         }
+        // Start pipeline
+        .subscribe()
+}
+
+fun onPurge(arg: String?, event: GuildMessageReceivedEvent) {
+    val channel = event.channel
+    if (arg == null) {
+        // No arguments provided, who should we purge then?
+        return channel.sendMessage("Usage: `--purge <user>`").queue()
+    }
+
+    // member can't be null here since we don't allow webhook messages, thus we use null assertion
+    if (!event.member!!.hasPermission(channel, Permission.MESSAGE_MANAGE)) {
+        // We only want authorized people to use this command.
+        return channel.sendMessage("You lack the permission to delete messages in this channel!").queue()
+    }
+
+    // Check that we have permissions for this
+    if (!event.guild.selfMember.hasPermission(channel, Permission.MESSAGE_MANAGE)) {
+        return channel.sendMessage("I'm unable to delete messages, please allow me to manage messages!").queue()
+    }
+
+    val user = event.message.mentionedUsers.firstOrNull()?.toMono() ?: findUser(event.jda, arg)
+    // Handle missing user
+    user.switchIfEmpty {
+            channel.sendMessage("Unknown user!").queue()
+            Mono.empty()
+        }
+        // Map to Flux<Message> for the channel message history
+        .flatMapMany { target ->
+            channel.iterableHistory.asFlux().filter { it.author == target }
+        }
+        // Take list of 100 messages each
+        .buffer(100)
+        // Tell the user that we collected the messages and started purging
+        .doOnComplete { channel.sendMessage("Working on it...").queue() }
+        // Convert Flux<Message> to Mono<Void> representing the delete process
+        .map { channel.purgeMessages(it) }
+        .map { it.map { future -> Mono.fromFuture(future) } }
+        .flatMapSequential { Flux.merge(it) }
+        // Once we finished deleting messages, tell the user about it
+        .doOnComplete { channel.sendMessage("Finished!").queue() }
         // Start pipeline
         .subscribe()
 }
