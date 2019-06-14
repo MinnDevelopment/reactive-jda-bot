@@ -46,17 +46,17 @@ fun onSoftban(arg: String?, event: GuildMessageReceivedEvent) {
 
     // Either the user is mentioned or we need to look them up
     val user = event.message.mentionedUsers.firstOrNull()?.toMono() ?: findUser(event.jda, arg)
-    // Temporarily safe userId (this creates an indirect reference object)
-    var userId: String? = null
-    // thenReturn is used to allow flatMap to work, asMono() is just Mono<Void?> which will never provide a value
-    // instead we use thenReturn(Unit) which always returns the same object for convenience
 
     // ban and delete recent messages, side-effect: store id for unban
-    user.flatMap { userId = it.id; event.guild.ban(it, 1).asMono().thenReturn(Unit) }
+    user.flatMap {
+            // Remember the userId for unban
+            // Use thenReturn(Unit) to make fake element for mapping
+            Mono.zip(it.id.toMono(), event.guild.ban(it, 1).asMono().thenReturn(Unit))
+        }
         // delay unban by 5 seconds
         .delayElement(Duration.ofSeconds(5))
         // unban the user again
-        .flatMap { event.guild.unban(userId!!).asMono().thenReturn(Unit) }
+        .flatMap { event.guild.unban(it[0] as String).asMono().thenReturn(Unit) }
         // send message to channel, we have completed our job
         .flatMap { event.channel.sendMessage("Softban concluded.").asMono() }
         // Ignore errors
