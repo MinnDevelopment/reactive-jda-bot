@@ -20,14 +20,14 @@ import club.minnced.bot.findUser
 import club.minnced.jda.reactor.asFlux
 import club.minnced.jda.reactor.asMono
 import net.dv8tion.jda.api.Permission
-import net.dv8tion.jda.api.events.message.guild.GuildMessageReceivedEvent
+import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.core.publisher.switchIfEmpty
 import reactor.core.publisher.toMono
 import java.time.Duration
 
-fun onSoftban(arg: String?, event: GuildMessageReceivedEvent) {
+fun onSoftban(arg: String?, event: MessageReceivedEvent) {
     if (arg == null) {
         // No arguments provided, who should we ban then?
         return event.channel.sendMessage("Usage: `--softban <user>`").queue()
@@ -70,8 +70,8 @@ fun onSoftban(arg: String?, event: GuildMessageReceivedEvent) {
         .subscribe()
 }
 
-fun onPurge(arg: String?, event: GuildMessageReceivedEvent) {
-    val channel = event.channel
+fun onPurge(arg: String?, event: MessageReceivedEvent) {
+    val channel = event.textChannel
     if (arg == null) {
         // No arguments provided, who should we purge then?
         return channel.sendMessage("Usage: `--purge <user>`").queue()

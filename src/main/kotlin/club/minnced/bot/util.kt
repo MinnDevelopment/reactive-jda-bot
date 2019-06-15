@@ -18,16 +18,24 @@ package club.minnced.bot
 
 import club.minnced.jda.reactor.asMono
 import net.dv8tion.jda.api.JDA
+import net.dv8tion.jda.api.Permission
+import net.dv8tion.jda.api.entities.TextChannel
 import net.dv8tion.jda.api.entities.User
 import reactor.core.publisher.Mono
+import reactor.core.publisher.switchIfEmpty
 import reactor.core.publisher.toFlux
 import reactor.core.publisher.toMono
 
+fun TextChannel.checkWrite() = guild.selfMember.hasPermission(this, Permission.MESSAGE_WRITE)
+
 fun findUser(jda: JDA, arg: String): Mono<User> {
-    // I'm ignoring the special case that the user has a # in their name or a number as their username because those people are stupid.
     return when {
+        // Check id if numerical
         arg.matches(Regex("\\d+")) -> jda.retrieveUserById(arg).asMono().onErrorResume { Mono.empty() }
+        // Check discord tag if proper format
         arg.matches(Regex("\\w+?#\\d{4}")) -> jda.getUserByTag(arg)?.toMono() ?: Mono.empty()
-        else -> jda.getUsersByName(arg, true).toFlux().next()
-    }
+        // Empty for alternate case
+        else -> Mono.empty()
+        // Check by name otherwise
+    }.switchIfEmpty { jda.getUsersByName(arg, true).toFlux().next() }
 }

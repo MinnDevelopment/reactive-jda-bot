@@ -46,7 +46,7 @@ fun onRTT(channel: MessageChannel) {
     channel.onMessage()
         .map { it.message }
         .filter { it.nonce == nonce }
-        .next()
+        .next() // Convert Flux<Message> to Mono<Message> representing first element
         .subscribe { it.editMessage("RTT: ${System.currentTimeMillis() - time}ms").queue() }
 
     // Send message to listen to
