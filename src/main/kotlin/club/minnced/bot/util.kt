@@ -24,7 +24,6 @@ import net.dv8tion.jda.api.entities.User
 import reactor.core.publisher.Mono
 import reactor.core.publisher.switchIfEmpty
 import reactor.core.publisher.toFlux
-import reactor.core.publisher.toMono
 
 val NUMERICAL = Regex("\\d+")
 val DISCORD_TAG = Regex("\\w+?#\\d{4}")
@@ -37,7 +36,7 @@ fun findUser(jda: JDA, arg: String): Mono<User> {
                 // Check id if numerical
                 arg.matches(NUMERICAL) -> jda.retrieveUserById(arg).asMono()
                 // Check discord tag if proper format
-                arg.matches(DISCORD_TAG) -> jda.getUserByTag(arg)?.toMono() ?: Mono.empty()
+                arg.matches(DISCORD_TAG) -> Mono.justOrEmpty(jda.getUserByTag(arg))
                 // Empty for alternate case
                 else -> Mono.empty()
             }
