@@ -13,13 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+@file:JvmName("Main")
 package club.minnced.bot
 
-import club.minnced.bot.command.onAvatar
-import club.minnced.bot.command.onPing
-import club.minnced.bot.command.onPurge
-import club.minnced.bot.command.onSoftban
+import club.minnced.bot.command.*
 import club.minnced.jda.reactor.ReactiveEventManager
 import club.minnced.jda.reactor.on
 import net.dv8tion.jda.api.JDABuilder
@@ -59,6 +56,7 @@ fun onBasicCommand(event: MessageReceivedEvent) {
     val command = parts[0].substring(2).toLowerCase()
     when (command) {
         "ping" -> onPing(event.channel)
+        "rtt" -> onRTT(event.channel)
         "avatar" -> onAvatar(parts.getOrNull(1), event)
     }
 }

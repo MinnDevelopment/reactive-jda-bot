@@ -5,7 +5,7 @@ plugins {
     kotlin("jvm") version "1.3.21"
 }
 
-application.mainClassName = "club.minnced.bot.MainKt"
+application.mainClassName = "club.minnced.bot.Main"
 
 group = "club.minnced"
 version = "1.0-SNAPSHOT"
@@ -15,7 +15,7 @@ repositories {
 }
 
 dependencies {
-    implementation("club.minnced:jda-reactor:0.1.11")
+    implementation("club.minnced:jda-reactor:0.1.12")
     implementation("ch.qos.logback:logback-classic:1.2.3")
     implementation("net.dv8tion:JDA:4.ALPHA.0_107")
     implementation(kotlin("stdlib-jdk8"))

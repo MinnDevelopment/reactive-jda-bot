@@ -13,11 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+@file:JvmName("Basic")
 package club.minnced.bot.command
 
 import club.minnced.bot.findUser
 import club.minnced.jda.reactor.asMono
+import club.minnced.jda.reactor.onMessage
 import net.dv8tion.jda.api.EmbedBuilder
 import net.dv8tion.jda.api.entities.MessageChannel
 import net.dv8tion.jda.api.entities.MessageEmbed
@@ -26,6 +27,7 @@ import reactor.core.publisher.Mono
 import reactor.core.publisher.switchIfEmpty
 import reactor.core.publisher.toMono
 import java.awt.Color
+import java.util.concurrent.ThreadLocalRandom
 
 fun onPing(channel: MessageChannel) {
     // JDA provides both ping for REST as well as Gateway
@@ -34,6 +36,21 @@ fun onPing(channel: MessageChannel) {
         .flatMap { channel.sendMessage("**Message Ping**: ${it}ms\n" +
                                        "**Gateway Ping**: ${gatewayPing}ms").asMono() }
         .subscribe()
+}
+
+fun onRTT(channel: MessageChannel) {
+    val time = System.currentTimeMillis()
+    val nonce = ThreadLocalRandom.current().nextLong().toString()
+
+    // Register listener for nonce
+    channel.onMessage()
+        .map { it.message }
+        .filter { it.nonce == nonce }
+        .next()
+        .subscribe { it.editMessage("RTT: ${System.currentTimeMillis() - time}ms").queue() }
+
+    // Send message to listen to
+    channel.sendMessage("Calculating...").nonce(nonce).queue()
 }
 
 fun onAvatar(arg: String?, event: MessageReceivedEvent) {
