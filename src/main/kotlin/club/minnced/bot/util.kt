@@ -26,16 +26,24 @@ import reactor.core.publisher.switchIfEmpty
 import reactor.core.publisher.toFlux
 import reactor.core.publisher.toMono
 
+val NUMERICAL = Regex("\\d+")
+val DISCORD_TAG = Regex("\\w+?#\\d{4}")
+
 fun TextChannel.checkWrite() = guild.selfMember.hasPermission(this, Permission.MESSAGE_WRITE)
 
 fun findUser(jda: JDA, arg: String): Mono<User> {
-    return when {
-        // Check id if numerical
-        arg.matches(Regex("\\d+")) -> jda.retrieveUserById(arg).asMono().onErrorResume { Mono.empty() }
-        // Check discord tag if proper format
-        arg.matches(Regex("\\w+?#\\d{4}")) -> jda.getUserByTag(arg)?.toMono() ?: Mono.empty()
-        // Empty for alternate case
-        else -> Mono.empty()
+    return Mono.defer {
+            when {
+                // Check id if numerical
+                arg.matches(NUMERICAL) -> jda.retrieveUserById(arg).asMono()
+                // Check discord tag if proper format
+                arg.matches(DISCORD_TAG) -> jda.getUserByTag(arg)?.toMono() ?: Mono.empty()
+                // Empty for alternate case
+                else -> Mono.empty()
+            }
+        }
+        // Error indicates lookup failure, return empty mono instead
+        .onErrorResume { Mono.empty() }
         // Check by name otherwise
-    }.switchIfEmpty { jda.getUsersByName(arg, true).toFlux().next() }
+        .switchIfEmpty { jda.getUsersByName(arg, true).toFlux().next() }
 }
