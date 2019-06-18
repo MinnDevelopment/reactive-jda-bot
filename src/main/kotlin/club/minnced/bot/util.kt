@@ -17,6 +17,7 @@
 package club.minnced.bot
 
 import club.minnced.jda.reactor.asMono
+import club.minnced.jda.reactor.toMono
 import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.entities.TextChannel
@@ -36,7 +37,7 @@ fun findUser(jda: JDA, arg: String): Mono<User> {
                 // Check id if numerical
                 arg.matches(NUMERICAL) -> jda.retrieveUserById(arg).asMono()
                 // Check discord tag if proper format
-                arg.matches(DISCORD_TAG) -> Mono.justOrEmpty(jda.getUserByTag(arg))
+                arg.matches(DISCORD_TAG) -> jda.getUserByTag(arg).toMono()
                 // Empty for alternate case
                 else -> Mono.empty()
             }

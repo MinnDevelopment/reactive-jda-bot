@@ -19,13 +19,13 @@ package club.minnced.bot.command
 import club.minnced.bot.findUser
 import club.minnced.jda.reactor.asMono
 import club.minnced.jda.reactor.onMessage
+import club.minnced.jda.reactor.toMono
 import net.dv8tion.jda.api.EmbedBuilder
 import net.dv8tion.jda.api.entities.MessageChannel
 import net.dv8tion.jda.api.entities.MessageEmbed
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import reactor.core.publisher.Mono
 import reactor.core.publisher.switchIfEmpty
-import reactor.core.publisher.toMono
 import java.awt.Color
 import java.util.concurrent.ThreadLocalRandom
 
@@ -57,11 +57,11 @@ fun onAvatar(arg: String?, event: MessageReceivedEvent) {
     val mono: Mono<MessageEmbed> = Mono.create { sink ->
         val builder = EmbedBuilder()
         // Find the user
-        var user = event.message.mentionedUsers.firstOrNull()?.toMono()
-        if (arg == null)
-            user = event.author.toMono()
-        else if (user == null)
-            user = findUser(event.jda, arg)
+        var user = event.message.mentionedUsers.firstOrNull().toMono()
+        user = when (arg) {
+            null -> event.author.toMono()                           // no user-input => use caller
+            else -> user.switchIfEmpty { findUser(event.jda, arg) } // user wasn't mentioned, check if we can find them though
+        }
 
         // First handle the case that the user doesn't exist
         user.switchIfEmpty {

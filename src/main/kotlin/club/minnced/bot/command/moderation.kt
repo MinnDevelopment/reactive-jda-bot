@@ -19,12 +19,12 @@ package club.minnced.bot.command
 import club.minnced.bot.findUser
 import club.minnced.jda.reactor.asFlux
 import club.minnced.jda.reactor.asMono
+import club.minnced.jda.reactor.toMono
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.core.publisher.switchIfEmpty
-import reactor.core.publisher.toMono
 import java.time.Duration
 
 fun onSoftban(arg: String?, event: MessageReceivedEvent) {
@@ -45,7 +45,7 @@ fun onSoftban(arg: String?, event: MessageReceivedEvent) {
     }
 
     // Either the user is mentioned or we need to look them up
-    val user = event.message.mentionedUsers.firstOrNull()?.toMono() ?: findUser(event.jda, arg)
+    val user = event.message.mentionedUsers.firstOrNull().toMono().switchIfEmpty { findUser(event.jda, arg) }
 
     // ban and delete recent messages, side-effect: store id for unban
     user.flatMap {
@@ -88,7 +88,7 @@ fun onPurge(arg: String?, event: MessageReceivedEvent) {
         return channel.sendMessage("I'm unable to delete messages, please allow me to manage messages!").queue()
     }
 
-    val user = event.message.mentionedUsers.firstOrNull()?.toMono() ?: findUser(event.jda, arg)
+    val user = event.message.mentionedUsers.firstOrNull().toMono().switchIfEmpty { findUser(event.jda, arg) }
     // Handle missing user
     user.switchIfEmpty {
             channel.sendMessage("Unknown user!").queue()
