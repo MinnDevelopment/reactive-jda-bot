@@ -17,12 +17,18 @@
 package club.minnced.bot
 
 import club.minnced.bot.command.*
+import club.minnced.bot.moderation.onMemberBan
+import club.minnced.bot.moderation.onMemberKick
+import club.minnced.bot.moderation.onMemberUnban
 import club.minnced.jda.reactor.ReactiveEventManager
 import club.minnced.jda.reactor.on
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.OnlineStatus
 import net.dv8tion.jda.api.entities.Activity
 import net.dv8tion.jda.api.events.ReadyEvent
+import net.dv8tion.jda.api.events.guild.GuildBanEvent
+import net.dv8tion.jda.api.events.guild.GuildUnbanEvent
+import net.dv8tion.jda.api.events.guild.member.GuildMemberLeaveEvent
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 
 fun main(args: Array<String>) {
@@ -56,6 +62,19 @@ fun main(args: Array<String>) {
             if (it.isFromGuild && it.textChannel.checkWrite())
                 onGuildCommand(it)
         }
+
+    //Handle events for mod-log, note that all of these only work when the audit entry is generated
+    // This means the leave event will only trigger if it can be seen as a kick through audit logs.
+
+    // Ban
+    jda.on<GuildBanEvent>()
+       .subscribe { onMemberBan(it.guild, it.user) }
+    // Unban
+    jda.on<GuildUnbanEvent>()
+       .subscribe { onMemberUnban(it.guild, it.user) }
+    // Possibly kick
+    jda.on<GuildMemberLeaveEvent>()
+       .subscribe { onMemberKick(it.guild, it.user) }
 }
 
 fun onBasicCommand(event: MessageReceivedEvent) {
