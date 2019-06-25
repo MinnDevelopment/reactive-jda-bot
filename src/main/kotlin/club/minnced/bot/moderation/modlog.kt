@@ -130,7 +130,9 @@ private fun findAuditLog(guild: Guild, userId: Long, type: ActionType): Mono<Tup
 }
 
 private fun findModLog(guild: Guild): Mono<TextChannel> {
-    // I am using toFluxLocked() here for better performance, this is ok because it will be completed right away
+    //I am using toFluxLocked() here for better performance, this is ok because it will be completed right away
+    //The flux returned will apply a read-lock on the text-channel cache once subscribe() is called and release it
+    // again once the flux terminated (cancel/complete/error)
     return guild.textChannelCache.toFluxLocked()
         // If the channel has the name mod-log
         .filter { it.name == "mod-log" }
