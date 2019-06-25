@@ -37,14 +37,16 @@ fun main(args: Array<String>) {
     }
 
     val manager = ReactiveEventManager()
+    //Apply ready handler before calling build() to avoid race condition
     // READY -> set status from DND to ONLINE
     manager.on<ReadyEvent>()
         .next()
         .map { it.jda.presence }
         .subscribe { it.setStatus(OnlineStatus.ONLINE) }
 
+    // Start the JDA connection
     val jda = JDABuilder(args[0])
-        .setEventManager(manager)
+        .setEventManager(manager) // alternatively just reactive() if the manager doesn't need to be used directly
         .setActivity(Activity.listening("for commands"))
         .setStatus(OnlineStatus.DO_NOT_DISTURB) // status DND during setup
         .build()
@@ -64,7 +66,7 @@ fun main(args: Array<String>) {
         }
 
     //Handle events for mod-log, note that all of these only work when the audit entry is generated
-    // This means the leave event will only trigger if it can be seen as a kick through audit logs.
+    // This means the leave event will only trigger the mod-log update if it can be seen as a kick through audit logs.
 
     // Ban
     jda.on<GuildBanEvent>()
@@ -72,7 +74,7 @@ fun main(args: Array<String>) {
     // Unban
     jda.on<GuildUnbanEvent>()
        .subscribe { onMemberUnban(it.guild, it.user) }
-    // Possibly kick
+    // Possibly kick (usually just leave, this is also triggered by bans)
     jda.on<GuildMemberLeaveEvent>()
        .subscribe { onMemberKick(it.guild, it.user) }
 }

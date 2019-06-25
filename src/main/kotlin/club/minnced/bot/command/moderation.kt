@@ -26,6 +26,8 @@ import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.core.publisher.switchIfEmpty
 import java.time.Duration
+import java.time.OffsetDateTime
+import java.time.temporal.ChronoUnit
 
 fun onSoftban(arg: String?, event: MessageReceivedEvent) {
     if (arg == null) {
@@ -96,7 +98,15 @@ fun onPurge(arg: String?, event: MessageReceivedEvent) {
         }
         // Map to Flux<Message> for the channel message history
         .flatMapMany { target ->
+            // Use asFlux() to iterate the entire paginated endpoint rather than toFlux()
+            // toFlux() would only request the first 100 messages in this case since no limit() is applied
+            //  we don't want to be limited by that though since we use a time limitation not an amount threshold
             channel.iterableHistory.asFlux().filter { it.author == target }
+        }
+        // Only go back 30 days, anything above that would be overkill and take too long
+        .takeWhile {
+            // Limited by 30 days into the past
+            it.timeCreated.until(OffsetDateTime.now(), ChronoUnit.DAYS) < 30
         }
         // Take list of 100 messages each
         .buffer(100)

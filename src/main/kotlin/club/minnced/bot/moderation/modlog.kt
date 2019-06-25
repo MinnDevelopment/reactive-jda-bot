@@ -16,8 +16,8 @@
 
 package club.minnced.bot.moderation
 
-import club.minnced.jda.reactor.asFlux
 import club.minnced.jda.reactor.asMono
+import club.minnced.jda.reactor.toFlux
 import club.minnced.jda.reactor.toFluxLocked
 import club.minnced.jda.reactor.toMono
 import net.dv8tion.jda.api.EmbedBuilder
@@ -118,7 +118,11 @@ private fun findAuditLog(guild: Guild, userId: Long, type: ActionType): Mono<Tup
     return guild.retrieveAuditLogs()
         // Filter only the specific type before starting flux
         .type(type)
-        .asFlux()
+        .limit(5)
+        // Use toFlux here to not iterate the entire audit-log, only the first batch (limited to 5 entries by limit(5))
+        // Alternatively asFlux() would paginate the audit-logs and go further while ignoring the limit above
+        //  which can be useful for somethhing like a message purge command (see command/moderation.kt)
+        .toFlux()
         // Delay by 200 milliseconds to make sure the log entry exists
         .delaySubscription(Duration.ofMillis(200))
         // Only inspect entries for the right user
