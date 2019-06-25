@@ -20,35 +20,80 @@ import club.minnced.bot.command.*
 import club.minnced.bot.moderation.onMemberBan
 import club.minnced.bot.moderation.onMemberKick
 import club.minnced.bot.moderation.onMemberUnban
-import club.minnced.jda.reactor.ReactiveEventManager
+import club.minnced.jda.reactor.asMono
+import club.minnced.jda.reactor.createManager
 import club.minnced.jda.reactor.on
+import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.OnlineStatus
+import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.entities.Activity
 import net.dv8tion.jda.api.events.ReadyEvent
+import net.dv8tion.jda.api.events.ShutdownEvent
+import net.dv8tion.jda.api.events.guild.GenericGuildEvent
 import net.dv8tion.jda.api.events.guild.GuildBanEvent
 import net.dv8tion.jda.api.events.guild.GuildUnbanEvent
 import net.dv8tion.jda.api.events.guild.member.GuildMemberLeaveEvent
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
+import net.dv8tion.jda.api.utils.cache.CacheFlag
+import reactor.core.scheduler.Schedulers
+import java.util.*
+import java.util.concurrent.Executors
+import java.util.concurrent.ForkJoinPool
+import kotlin.concurrent.thread
 
 fun main(args: Array<String>) {
     if (args.isEmpty()) {
         error("Cannot start bot without a token!")
     }
 
-    val manager = ReactiveEventManager()
-    //Apply ready handler before calling build() to avoid race condition
-    // READY -> set status from DND to ONLINE
+    // Create a shared executor for the flux processor and JDA
+    var count = 0
+    val executor = Executors.newScheduledThreadPool(ForkJoinPool.getCommonPoolParallelism()) {
+        thread(start=false, block=it::run, name="jda-thread-${count++}", isDaemon=true)
+    }
+
+    // Wrap executor in scheduler for flux processor
+    val schedulerWrap = Schedulers.fromExecutor(executor)
+
+    // Create a reactive event manager with the scheduler
+    val manager = createManager {
+        scheduler = schedulerWrap
+        isDispose = false // The scheduler uses a daemon pool so it doesn't need to be shutdown here since the JVM will terminate anyway
+    }
+
+    // Apply ready handler before calling build() to avoid race condition
     manager.on<ReadyEvent>()
+        // Convert to Mono<ReadyEvent> to simplify
         .next()
-        .map { it.jda.presence }
-        .subscribe { it.setStatus(OnlineStatus.ONLINE) }
+        // Take the JDA instance
+        .map { it.jda }
+        // READY -> set status from DND to ONLINE
+        .doOnSuccess { it.presence.setStatus(OnlineStatus.ONLINE) }
+        // Retrieve bot owner
+        .flatMap { it.retrieveApplicationInfo().asMono() }
+        // We only need the id
+        .map { it.owner.idLong }
+        // Map to owner-only commands
+        .flatMapMany { ownerId ->
+            manager.on<MessageReceivedEvent>()
+                   .filter { it.author.idLong == ownerId }
+        }
+        // We only have one owner-only command called shutdown
+        .filter { it.message.contentRaw == "--shutdown" }
+        // Convert to JDA instance of the event
+        .map(MessageReceivedEvent::getJDA)
+        // Shutdown
+        .subscribe(JDA::shutdown)
 
     // Start the JDA connection
     val jda = JDABuilder(args[0])
         .setEventManager(manager) // alternatively just reactive() if the manager doesn't need to be used directly
         .setActivity(Activity.listening("for commands"))
         .setStatus(OnlineStatus.DO_NOT_DISTURB) // status DND during setup
+        .setDisabledCacheFlags(EnumSet.allOf(CacheFlag::class.java)) // Disable cache we don't need
+        .setRateLimitPool(executor)
+        .setGatewayPool(executor)
         .build()
 
     // Handle commands
@@ -68,15 +113,28 @@ fun main(args: Array<String>) {
     //Handle events for mod-log, note that all of these only work when the audit entry is generated
     // This means the leave event will only trigger the mod-log update if it can be seen as a kick through audit logs.
 
+    // Only handle if audit logs are readable
+    val hasPermission: (GenericGuildEvent) -> Boolean = { it.guild.selfMember.hasPermission(Permission.VIEW_AUDIT_LOGS) }
+
     // Ban
     jda.on<GuildBanEvent>()
+       .filter(hasPermission)
        .subscribe { onMemberBan(it.guild, it.user) }
     // Unban
     jda.on<GuildUnbanEvent>()
+       .filter(hasPermission)
        .subscribe { onMemberUnban(it.guild, it.user) }
     // Possibly kick (usually just leave, this is also triggered by bans)
     jda.on<GuildMemberLeaveEvent>()
+       .filter(hasPermission)
        .subscribe { onMemberKick(it.guild, it.user) }
+
+    // Handle shutdown cleanup
+    jda.on<ShutdownEvent>()
+       .subscribe {
+           // Cleanup HTTP connections that keep the JVM from shutting down
+           it.jda.httpClient.connectionPool().evictAll()
+       }
 }
 
 fun onBasicCommand(event: MessageReceivedEvent) {
