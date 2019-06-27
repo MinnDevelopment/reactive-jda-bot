@@ -19,6 +19,7 @@ package club.minnced.bot.command
 import club.minnced.bot.findUser
 import club.minnced.jda.reactor.asFlux
 import club.minnced.jda.reactor.asMono
+import club.minnced.jda.reactor.then
 import club.minnced.jda.reactor.toMono
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
@@ -60,7 +61,7 @@ fun onSoftban(arg: String?, event: MessageReceivedEvent) {
         // unban the user again
         .flatMap { event.guild.unban(it[0] as String).asMono().thenReturn(Unit) }
         // send message to channel, we have completed our job
-        .flatMap { event.channel.sendMessage("Softban concluded.").asMono() }
+        .then { event.channel.sendMessage("Softban concluded.").asMono() }
         // Ignore errors
         .onErrorResume { Mono.empty() }
         // If the user doesn't exist, tell them it failed
