@@ -23,7 +23,6 @@ import club.minnced.jda.reactor.then
 import club.minnced.jda.reactor.toMono
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
-import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.core.publisher.switchIfEmpty
 import java.time.Duration
@@ -113,12 +112,12 @@ fun onPurge(arg: String?, event: MessageReceivedEvent) {
         .buffer(100)
         // Tell the user that we collected the messages and started purging
         .doOnComplete { channel.sendMessage("Working on it...").queue() }
-        // Convert Flux<Message> to Mono<Void> representing the delete process
-        .map { channel.purgeMessages(it) }
-        .map { it.map { future -> Mono.fromFuture(future) } }
-        .flatMapSequential { Flux.merge(it) }
-        // Once we finished deleting messages, tell the user about it
-        .doOnComplete { channel.sendMessage("Finished!").queue() }
+        // Convert Flux<Message> to Flux<Void> representing the delete process
+        .flatMap { channel.purgeMessages(it).asFlux() }
+        // Continue when one future has an error, this could just be that the message is gone already (not an issue)
+        .onErrorContinue { error, _ -> error.printStackTrace() }
+        // Use then() to hook to the termination signal as Mono<Message> to tell the user we are done
+        .then { channel.sendMessage("Finished!").asMono() }
         // Start pipeline
         .subscribe()
 }
