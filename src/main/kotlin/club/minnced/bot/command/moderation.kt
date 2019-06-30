@@ -25,48 +25,55 @@ import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import reactor.core.publisher.Mono
 import reactor.core.publisher.switchIfEmpty
+import reactor.core.publisher.toFlux
 import java.time.Duration
 import java.time.OffsetDateTime
 import java.time.temporal.ChronoUnit
 
 fun onSoftban(arg: String?, event: MessageReceivedEvent) {
+    val channel = event.channel
+    val selfMember = event.guild.selfMember
     if (arg == null) {
         // No arguments provided, who should we ban then?
-        return event.channel.sendMessage("Usage: `--softban <user>`").queue()
+        return channel.sendMessage("Usage: `--softban <user>`").queue()
     }
 
     // member can't be null here since we don't allow webhook messages, thus we use null assertion
     if (!event.member!!.hasPermission(Permission.KICK_MEMBERS)) {
         // We only want authorized people to use this command.
-        return event.channel.sendMessage("You lack the permission to kick members in this server!").queue()
+        return channel.sendMessage("You lack the permission to kick members in this server!").queue()
     }
 
     // Check that we have permissions for this
-    if (!event.guild.selfMember.hasPermission(Permission.BAN_MEMBERS)) {
-        return event.channel.sendMessage("I'm unable to ban members, please grant me permission to ban members!").queue()
+    if (!selfMember.hasPermission(Permission.BAN_MEMBERS)) {
+        return channel.sendMessage("I'm unable to ban members, please grant me permission to ban members!").queue()
     }
 
     // Either the user is mentioned or we need to look them up
-    val user = event.message.mentionedUsers.firstOrNull().toMono().switchIfEmpty { findUser(event.jda, arg) }
+    val user = event.message.mentionedUsers
+        .toFlux()
+        .next() // take first mentioned user
+        .switchIfEmpty { findUser(event.jda, arg) } // otherwise find the referenced user
+        .map { it.id } // take the id (if available)
 
-    // ban and delete recent messages, side-effect: store id for unban
+    // ban and delete recent messages
     user.flatMap {
-            // Remember the userId for unban
-            // Use thenReturn(Unit) to make fake element for mapping
-            Mono.zip(it.id.toMono(), event.guild.ban(it, 1).asMono().thenReturn(Unit))
+            // Use thenReturn(it) to keep the id for the unban
+            event.guild.ban(it, 1).asMono().thenReturn(it)
         }
-        // delay unban by 5 seconds
-        .delayElement(Duration.ofSeconds(5))
-        // unban the user again
-        .flatMap { event.guild.unban(it[0] as String).asMono().thenReturn(Unit) }
-        // send message to channel, we have completed our job
-        .then { event.channel.sendMessage("Softban concluded.").asMono() }
+        // delay unban by 300 milliseconds
+        .delayElement(Duration.ofMillis(300))
+        // unban the user again, return the id again for error handling
+        .flatMap { event.guild.unban(it).asMono().thenReturn(it) }
         // Ignore errors
         .onErrorResume { Mono.empty() }
-        // If the user doesn't exist, tell them it failed
-        .switchIfEmpty {
-            event.channel.sendMessage("Cannot softban user!").queue()
-            Mono.empty()
+        // Check if the ban worked
+        .hasElement()
+        .flatMap {
+            if (it) // confirm
+                channel.sendMessage("Softban concluded.").asMono()
+            else    // empty -> reject due to missing user or error
+                channel.sendMessage("Cannot softban this user!").asMono()
         }
         // Start pipeline
         .subscribe()
@@ -91,10 +98,9 @@ fun onPurge(arg: String?, event: MessageReceivedEvent) {
     }
 
     val user = event.message.mentionedUsers.firstOrNull().toMono().switchIfEmpty { findUser(event.jda, arg) }
-    // Handle missing user
     user.switchIfEmpty {
-            channel.sendMessage("Unknown user!").queue()
-            Mono.empty()
+            // Handle missing user
+            channel.sendMessage("Unknown user!").asMono().then(Mono.empty())
         }
         // Map to Flux<Message> for the channel message history
         .flatMapMany { target ->
