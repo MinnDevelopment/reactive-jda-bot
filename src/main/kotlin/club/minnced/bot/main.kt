@@ -23,7 +23,6 @@ import club.minnced.bot.moderation.onMemberUnban
 import club.minnced.jda.reactor.asMono
 import club.minnced.jda.reactor.createManager
 import club.minnced.jda.reactor.on
-import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.OnlineStatus
 import net.dv8tion.jda.api.Permission
@@ -73,7 +72,7 @@ fun main(args: Array<String>) {
         // Retrieve bot owner
         .flatMap { it.retrieveApplicationInfo().asMono() }
         // We only need the id
-        .map { it.owner.idLong }
+        .map { it.owner.idLong } // Alternatively use the team with it.team and check the members!
         // Map to owner-only commands
         .flatMapMany { ownerId ->
             manager.on<MessageReceivedEvent>()
@@ -84,7 +83,15 @@ fun main(args: Array<String>) {
         // Convert to JDA instance of the event
         .map(MessageReceivedEvent::getJDA)
         // Shutdown
-        .subscribe(JDA::shutdown)
+        .subscribe {
+            // To make the JVM shutdown we have to get rid of all the user threads (non-daemon threads)
+            //  JDA creates at least 2 user threads for the gateway connection (receiving events from discord)
+            //  and the HTTP client creates at least 1 user thread for the discord connection (http/2 re-used socket)
+            // Shutdown JDA connection
+            it.shutdown()
+            // Prune http client threads
+            it.httpClient.connectionPool().evictAll()
+        }
 
     // Start the JDA connection
     val jda = JDABuilder(args[0])
