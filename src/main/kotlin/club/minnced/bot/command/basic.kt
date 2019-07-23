@@ -30,11 +30,24 @@ import java.awt.Color
 import java.util.concurrent.ThreadLocalRandom
 
 fun onPing(channel: MessageChannel) {
-    // JDA provides both ping for REST as well as Gateway
-    val gatewayPing = channel.jda.gatewayPing
-    channel.jda.restPing.asMono()
-        .flatMap { channel.sendMessage("**Message Ping**: ${it}ms\n" +
-                                       "**Gateway Ping**: ${gatewayPing}ms").asMono() }
+    // Send message for the message ping (in the meantime get the rest ping)
+    Mono.zip(channel.sendMessage("Calculating...").asMono().elapsed(),
+             channel.jda.restPing.asMono())
+        .flatMap {
+            // the elapsed() gave us the time between subscribe() and next() signals
+            val messagePing = it.t1.t1
+            // we need the message again to edit it with the times
+            val message = it.t1.t2
+            // we retrieved the rest ping in the meantime (getting the user from the api)
+            val restPing = it.t2
+            // the gateway ping is provided by jda
+            val gatewayPing = channel.jda.gatewayPing
+            message.editMessage(
+                       "**Message Ping**: ${messagePing}ms\n" +
+                       "**Gateway Ping**: ${gatewayPing}ms\n" +
+                       "**Rest Ping**: ${restPing}ms")
+                   .asMono()
+        }
         .subscribe()
 }
 
@@ -54,7 +67,7 @@ fun onRTT(channel: MessageChannel) {
 }
 
 fun onAvatar(arg: String?, event: MessageReceivedEvent) {
-    val mono: Mono<MessageEmbed> = Mono.create { sink ->
+    val mono: Mono<MessageEmbed> = Mono.defer {
         val builder = EmbedBuilder()
         // Find the user
         var user = event.message.mentionedUsers.firstOrNull().toMono()
@@ -63,19 +76,18 @@ fun onAvatar(arg: String?, event: MessageReceivedEvent) {
             else -> user.switchIfEmpty { findUser(event.jda, arg) } // user wasn't mentioned, check if we can find them though
         }
 
-        // First handle the case that the user doesn't exist
-        user.switchIfEmpty {
-                builder.setColor(Color.RED)
-                builder.setDescription("Unable to find user $arg")
-                sink.success(builder.build())
-                Mono.empty()
-            }
-            // Start pipeline and finish task
-            .subscribe {
+        user.map {
                 builder.setAuthor(it.name)
                 builder.setImage(it.effectiveAvatarUrl)
-                sink.success(builder.build())
+                builder.build()
             }
+            // handle the case that the user doesn't exist
+            .switchIfEmpty {
+                builder.setColor(Color.RED)
+                builder.setDescription("Unable to find user $arg")
+                builder.build().toMono()
+            }
+
     }
     // Consume the constructed embed
     mono.subscribe {
