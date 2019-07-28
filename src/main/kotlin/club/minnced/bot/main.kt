@@ -36,15 +36,15 @@ import net.dv8tion.jda.api.events.guild.member.GuildMemberLeaveEvent
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.utils.cache.CacheFlag
 import reactor.core.scheduler.Schedulers
+import java.io.File
 import java.util.*
 import java.util.concurrent.Executors
 import java.util.concurrent.ForkJoinPool
 import kotlin.concurrent.thread
+import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
-    if (args.isEmpty()) {
-        error("Cannot start bot without a token!")
-    }
+    val token = getToken(args)
 
     // Create a shared executor for the flux processor and JDA
     var count = 0
@@ -93,8 +93,9 @@ fun main(args: Array<String>) {
             it.httpClient.connectionPool().evictAll()
         }
 
+
     // Start the JDA connection
-    val jda = JDABuilder(args[0])
+    val jda = JDABuilder(token)
         .setEventManager(manager) // alternatively just reactive() if the manager doesn't need to be used directly
         .setActivity(Activity.listening("for commands"))
         .setStatus(OnlineStatus.DO_NOT_DISTURB) // status DND during setup
@@ -142,6 +143,21 @@ fun main(args: Array<String>) {
            // Cleanup HTTP connections that keep the JVM from shutting down
            it.jda.httpClient.connectionPool().evictAll()
        }
+}
+
+private fun getToken(args: Array<String>): String {
+    if (args.isEmpty()) {
+        println("Cannot start bot without a token!")
+        exitProcess(1)
+    }
+
+    val tokenFile = File(args[0])
+    if (!tokenFile.canRead()) {
+        println("Cannot read from file ${args[0]}")
+        exitProcess(2)
+    }
+
+    return tokenFile.readText().trim()
 }
 
 fun onBasicCommand(event: MessageReceivedEvent) {

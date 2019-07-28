@@ -4,3 +4,4 @@ build/
 *.jar
 *.class
 gradle.properties
+.token
