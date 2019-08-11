@@ -15,9 +15,9 @@ repositories {
 }
 
 dependencies {
-    implementation("club.minnced:jda-reactor:0.2.5")
+    implementation("club.minnced:jda-reactor:0.2.7")
     implementation("ch.qos.logback:logback-classic:1.2.3")
-    implementation("net.dv8tion:JDA:4.BETA.0_26")
+    implementation("net.dv8tion:JDA:4.0.0_39")
     implementation(kotlin("stdlib-jdk8"))
 }
 
