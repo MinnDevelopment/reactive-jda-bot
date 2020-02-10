@@ -22,14 +22,25 @@ import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.entities.TextChannel
 import net.dv8tion.jda.api.entities.User
+import net.dv8tion.jda.api.requests.RestAction
 import reactor.core.publisher.Mono
 import reactor.core.publisher.switchIfEmpty
 import reactor.core.publisher.toFlux
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.coroutines.suspendCoroutine
 
 val NUMERICAL = Regex("\\d+")
 val DISCORD_TAG = Regex("\\w+?#\\d{4}")
 
 fun TextChannel.checkWrite() = guild.selfMember.hasPermission(this, Permission.MESSAGE_WRITE)
+
+suspend fun RestAction<*>.awaitUnit() = suspendCoroutine<Unit> { continuation ->
+    queue(
+        { continuation.resume(Unit) },
+        { continuation.resumeWithException(it) }
+    )
+}
 
 fun findUser(jda: JDA, arg: String): Mono<User> {
     return Mono.defer {

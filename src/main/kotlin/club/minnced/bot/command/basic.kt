@@ -20,19 +20,20 @@ import club.minnced.bot.findUser
 import club.minnced.jda.reactor.asMono
 import club.minnced.jda.reactor.onMessage
 import club.minnced.jda.reactor.toMono
+import kotlinx.coroutines.reactive.awaitFirstOrNull
+import kotlinx.coroutines.reactor.mono
 import net.dv8tion.jda.api.EmbedBuilder
 import net.dv8tion.jda.api.entities.MessageChannel
-import net.dv8tion.jda.api.entities.MessageEmbed
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import reactor.core.publisher.Mono
 import reactor.core.publisher.switchIfEmpty
 import java.awt.Color
 import java.util.concurrent.ThreadLocalRandom
 
-fun onPing(channel: MessageChannel) {
+// Display ping
+fun onPing(channel: MessageChannel): Mono<*> {
     // Send message for the message ping (in the meantime get the rest ping)
-    Mono.zip(channel.sendMessage("Calculating...").asMono().elapsed(),
-             channel.jda.restPing.asMono())
+   return Mono.zip(channel.sendMessage("Calculating...").asMono().elapsed(), channel.jda.restPing.asMono())
         .flatMap {
             // the elapsed() gave us the time between subscribe() and next() signals
             val messagePing = it.t1.t1
@@ -48,26 +49,30 @@ fun onPing(channel: MessageChannel) {
                        "**Rest Ping**: ${restPing}ms")
                    .asMono()
         }
-        .subscribe()
 }
 
-fun onRTT(channel: MessageChannel) {
+// Calculate a roundtrip time
+fun onRTT(channel: MessageChannel): Mono<*> {
     val time = System.currentTimeMillis()
     val nonce = ThreadLocalRandom.current().nextLong().toString()
 
     // Register listener for nonce
-    channel.onMessage()
+    val listener = channel.onMessage()
         .map { it.message }
         .filter { it.nonce == nonce }
         .next() // Convert Flux<Message> to Mono<Message> representing first element
-        .subscribe { it.editMessage("RTT: ${System.currentTimeMillis() - time}ms").queue() }
+        .flatMap { it.editMessage("RTT: ${System.currentTimeMillis() - time} ms").asMono() }
 
     // Send message to listen to
-    channel.sendMessage("Calculating...").nonce(nonce).queue()
+    val message = channel.sendMessage("Calculating...").asMono()
+
+    // Combine both
+    return listener.and(message)
 }
 
-fun onAvatar(arg: String?, event: MessageReceivedEvent) {
-    val mono: Mono<MessageEmbed> = Mono.defer {
+// Fetch and display the avatar of a user
+fun onAvatar(arg: String?, event: MessageReceivedEvent): Mono<*> {
+    val embed = mono {
         val builder = EmbedBuilder()
         // Find the user
         var user = event.message.mentionedUsers.firstOrNull().toMono()
@@ -76,21 +81,18 @@ fun onAvatar(arg: String?, event: MessageReceivedEvent) {
             else -> user.switchIfEmpty { findUser(event.jda, arg) } // user wasn't mentioned, check if we can find them though
         }
 
-        user.map {
-                builder.setAuthor(it.name)
-                builder.setImage(it.effectiveAvatarUrl)
-                builder.build()
-            }
-            // handle the case that the user doesn't exist
-            .switchIfEmpty {
-                builder.setColor(Color.RED)
-                builder.setDescription("Unable to find user $arg")
-                builder.build().toMono()
-            }
+        val target = user.awaitFirstOrNull()
+        if (target != null) {
+            builder.setAuthor(target.name)
+            builder.setImage(target.effectiveAvatarUrl)
+            builder.build()
+        } else {
+            builder.setColor(Color.RED)
+            builder.setDescription("Unable to find user $arg")
+            builder.build()
+        }
+    }
 
-    }
     // Consume the constructed embed
-    mono.subscribe {
-        event.channel.sendMessage(it).queue()
-    }
+    return embed.flatMap { event.channel.sendMessage(it).asMono() }
 }

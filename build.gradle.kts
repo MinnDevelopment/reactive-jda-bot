@@ -15,10 +15,13 @@ repositories {
 }
 
 dependencies {
-    implementation("club.minnced:jda-reactor:0.2.7")
+    implementation("club.minnced:jda-reactor:1.0.0")
     implementation("ch.qos.logback:logback-classic:1.2.3")
-    implementation("net.dv8tion:JDA:4.0.0_39")
+    implementation("net.dv8tion:JDA:4.1.1_108")
+
     implementation(kotlin("stdlib-jdk8"))
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.3.2")
 }
 
 tasks.withType<KotlinCompile> {

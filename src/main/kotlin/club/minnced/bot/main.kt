@@ -23,6 +23,8 @@ import club.minnced.bot.moderation.onMemberUnban
 import club.minnced.jda.reactor.asMono
 import club.minnced.jda.reactor.createManager
 import club.minnced.jda.reactor.on
+import kotlinx.coroutines.reactive.awaitSingle
+import kotlinx.coroutines.reactor.mono
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.OnlineStatus
 import net.dv8tion.jda.api.Permission
@@ -35,6 +37,7 @@ import net.dv8tion.jda.api.events.guild.GuildUnbanEvent
 import net.dv8tion.jda.api.events.guild.member.GuildMemberLeaveEvent
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.utils.cache.CacheFlag
+import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
 import java.io.File
 import java.util.*
@@ -110,13 +113,8 @@ fun main(args: Array<String>) {
         .filter { !it.author.isBot }
         // filter by prefix
         .filter { it.message.contentRaw.startsWith("--") }
-        .subscribe {
-            // Commands that work anywhere
-            onBasicCommand(it)
-            // Commands that only work in guilds
-            if (it.isFromGuild && it.textChannel.checkWrite())
-                onGuildCommand(it)
-        }
+        .flatMap(::handleCommand)
+        .subscribe()
 
     //Handle events for mod-log, note that all of these only work when the audit entry is generated
     // This means the leave event will only trigger the mod-log update if it can be seen as a kick through audit logs.
@@ -145,6 +143,14 @@ fun main(args: Array<String>) {
        }
 }
 
+private fun handleCommand(it: MessageReceivedEvent) = mono {
+    // Commands that work anywhere
+    onBasicCommand(it).awaitSingle()
+    // Commands that only work in guilds
+    if (it.isFromGuild && it.textChannel.checkWrite())
+        onGuildCommand(it).awaitSingle()
+}
+
 private fun getToken(args: Array<String>): String {
     if (args.isEmpty()) {
         println("Cannot start bot without a token!")
@@ -160,24 +166,26 @@ private fun getToken(args: Array<String>): String {
     return tokenFile.readText().trim()
 }
 
-fun onBasicCommand(event: MessageReceivedEvent) {
+fun onBasicCommand(event: MessageReceivedEvent): Mono<*> {
     val content = event.message.contentRaw
     val parts = content.split(" ", limit = 2)
     val command = parts[0].substring(2).toLowerCase()
-    when (command) {
+    return when (command) {
         "ping" -> onPing(event.channel)
         "rtt" -> onRTT(event.channel)
         "avatar" -> onAvatar(parts.getOrNull(1), event)
+        else -> Mono.empty()
     }
 }
 
-fun onGuildCommand(event: MessageReceivedEvent) {
+fun onGuildCommand(event: MessageReceivedEvent): Mono<*> {
     val content = event.message.contentRaw
     val parts = content.split(" ", limit = 2)
     val command = parts[0].substring(2).toLowerCase()
-    when (command) {
+    return when (command) {
         "softban" -> onSoftban(parts.getOrNull(1), event)
         "purge" -> onPurge(parts.getOrNull(1), event)
+        else -> Mono.empty()
     }
 }
 
