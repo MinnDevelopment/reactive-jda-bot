@@ -64,7 +64,7 @@ fun onRTT(channel: MessageChannel): Mono<*> {
         .flatMap { it.editMessage("RTT: ${System.currentTimeMillis() - time} ms").asMono() }
 
     // Send message to listen to
-    val message = channel.sendMessage("Calculating...").asMono()
+    val message = channel.sendMessage("Calculating...").nonce(nonce).asMono()
 
     // Combine both
     return listener.and(message)

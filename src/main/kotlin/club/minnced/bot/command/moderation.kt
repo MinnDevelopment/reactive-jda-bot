@@ -23,7 +23,6 @@ import club.minnced.jda.reactor.asMono
 import club.minnced.jda.reactor.toMono
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.reactive.awaitFirstOrNull
-import kotlinx.coroutines.reactive.awaitLast
 import kotlinx.coroutines.reactor.mono
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
@@ -118,8 +117,9 @@ fun onPurge(arg: String?, event: MessageReceivedEvent): Mono<*> {
             .buffer(100)
             // Delete the messages
             .flatMap { channel.purgeMessages(it).asFlux() }
+            .next()
             // Wait for it to be done
-            .awaitLast()
+            .awaitFirstOrNull()
 
         // We are done!
         channel.sendMessage("Finished!").awaitUnit()

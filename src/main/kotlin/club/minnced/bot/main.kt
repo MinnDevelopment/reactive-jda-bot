@@ -23,7 +23,7 @@ import club.minnced.bot.moderation.onMemberUnban
 import club.minnced.jda.reactor.asMono
 import club.minnced.jda.reactor.createManager
 import club.minnced.jda.reactor.on
-import kotlinx.coroutines.reactive.awaitSingle
+import kotlinx.coroutines.reactive.awaitFirstOrNull
 import kotlinx.coroutines.reactor.mono
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.OnlineStatus
@@ -34,13 +34,12 @@ import net.dv8tion.jda.api.events.ShutdownEvent
 import net.dv8tion.jda.api.events.guild.GenericGuildEvent
 import net.dv8tion.jda.api.events.guild.GuildBanEvent
 import net.dv8tion.jda.api.events.guild.GuildUnbanEvent
-import net.dv8tion.jda.api.events.guild.member.GuildMemberLeaveEvent
+import net.dv8tion.jda.api.events.guild.member.GuildMemberRemoveEvent
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
-import net.dv8tion.jda.api.utils.cache.CacheFlag
+import net.dv8tion.jda.api.requests.GatewayIntent.*
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
 import java.io.File
-import java.util.*
 import java.util.concurrent.Executors
 import java.util.concurrent.ForkJoinPool
 import kotlin.concurrent.thread
@@ -98,11 +97,10 @@ fun main(args: Array<String>) {
 
 
     // Start the JDA connection
-    val jda = JDABuilder(token)
+    val jda = JDABuilder.createLight(token, GUILD_MESSAGES, GUILD_MEMBERS, GUILD_BANS)
         .setEventManager(manager) // alternatively just reactive() if the manager doesn't need to be used directly
         .setActivity(Activity.listening("for commands"))
         .setStatus(OnlineStatus.DO_NOT_DISTURB) // status DND during setup
-        .setDisabledCacheFlags(EnumSet.allOf(CacheFlag::class.java)) // Disable cache we don't need
         .setRateLimitPool(executor)
         .setGatewayPool(executor)
         .build()
@@ -131,7 +129,7 @@ fun main(args: Array<String>) {
        .filter(hasPermission)
        .subscribe { onMemberUnban(it.guild, it.user) }
     // Possibly kick (usually just leave, this is also triggered by bans)
-    jda.on<GuildMemberLeaveEvent>()
+    jda.on<GuildMemberRemoveEvent>()
        .filter(hasPermission)
        .subscribe { onMemberKick(it.guild, it.user) }
 
@@ -145,10 +143,10 @@ fun main(args: Array<String>) {
 
 private fun handleCommand(it: MessageReceivedEvent) = mono {
     // Commands that work anywhere
-    onBasicCommand(it).awaitSingle()
+    onBasicCommand(it).awaitFirstOrNull()
     // Commands that only work in guilds
     if (it.isFromGuild && it.textChannel.checkWrite())
-        onGuildCommand(it).awaitSingle()
+        onGuildCommand(it).awaitFirstOrNull()
 }
 
 private fun getToken(args: Array<String>): String {
@@ -174,7 +172,7 @@ fun onBasicCommand(event: MessageReceivedEvent): Mono<*> {
         "ping" -> onPing(event.channel)
         "rtt" -> onRTT(event.channel)
         "avatar" -> onAvatar(parts.getOrNull(1), event)
-        else -> Mono.empty()
+        else -> Mono.empty<Unit>()
     }
 }
 
@@ -185,7 +183,7 @@ fun onGuildCommand(event: MessageReceivedEvent): Mono<*> {
     return when (command) {
         "softban" -> onSoftban(parts.getOrNull(1), event)
         "purge" -> onPurge(parts.getOrNull(1), event)
-        else -> Mono.empty()
+        else -> Mono.empty<Unit>()
     }
 }
 
