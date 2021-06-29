@@ -145,7 +145,7 @@ private fun handleCommand(it: MessageReceivedEvent) = mono {
     // Commands that work anywhere
     onBasicCommand(it).awaitFirstOrNull()
     // Commands that only work in guilds
-    if (it.isFromGuild && it.textChannel.checkWrite())
+    if (it.isFromGuild && it.textChannel.canTalk())
         onGuildCommand(it).awaitFirstOrNull()
 }
 
