@@ -54,14 +54,8 @@ fun main(args: Array<String>) {
         thread(start=false, block=it::run, name="jda-thread-${count++}", isDaemon=true)
     }
 
-    // Wrap executor in scheduler for flux processor
-    val schedulerWrap = Schedulers.fromExecutor(executor)
-
-    // Create a reactive event manager with the scheduler
-    val manager = createManager {
-        scheduler = schedulerWrap
-        isDispose = false // The scheduler uses a daemon pool so it doesn't need to be shutdown here since the JVM will terminate anyway
-    }
+    // Create a reactive event manager
+    val manager = createManager()
 
     // Apply ready handler before calling build() to avoid race condition
     manager.on<ReadyEvent>()

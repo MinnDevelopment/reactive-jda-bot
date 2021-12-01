@@ -80,7 +80,7 @@ private fun sendMessage(zip: Tuple2<TextChannel, AuditLogEntry>, embed: EmbedBui
     // Inject audit information, if available
     applyAuditEntry(embed, entry)
     // Send off the message
-    return channel.sendMessage(embed.build()).asMono()
+    return channel.sendMessageEmbeds(embed.build()).asMono()
 }
 
 private fun applyAuditEntry(embed: EmbedBuilder, entry: AuditLogEntry) {
@@ -141,7 +141,7 @@ private fun findModLog(guild: Guild): Mono<TextChannel> {
         // If the channel has the name mod-log
         .filter { it.name == "mod-log" }
         // And we can send a message to it
-        .filter { guild.selfMember.hasPermission(it, Permission.MESSAGE_WRITE) }
+        .filter { guild.selfMember.hasPermission(it, Permission.MESSAGE_SEND) }
         // Then use the first result as our mod-log
         .next()
 }

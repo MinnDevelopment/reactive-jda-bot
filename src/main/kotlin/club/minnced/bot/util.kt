@@ -21,6 +21,7 @@ import club.minnced.jda.reactor.toMono
 import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.Permission
 import net.dv8tion.jda.api.entities.TextChannel
+import net.dv8tion.jda.api.entities.GuildMessageChannel
 import net.dv8tion.jda.api.entities.User
 import net.dv8tion.jda.api.requests.RestAction
 import reactor.core.publisher.Mono
@@ -33,7 +34,7 @@ import kotlin.coroutines.suspendCoroutine
 val NUMERICAL = Regex("\\d+")
 val DISCORD_TAG = Regex("\\w+?#\\d{4}")
 
-fun TextChannel.checkWrite() = guild.selfMember.hasPermission(this, Permission.MESSAGE_WRITE)
+fun GuildMessageChannel.checkWrite() = canTalk(guild.selfMember)
 
 suspend fun RestAction<*>.awaitUnit() = suspendCoroutine<Unit> { continuation ->
     queue(

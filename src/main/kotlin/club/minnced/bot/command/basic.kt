@@ -94,5 +94,5 @@ fun onAvatar(arg: String?, event: MessageReceivedEvent): Mono<*> {
     }
 
     // Consume the constructed embed
-    return embed.flatMap { event.channel.sendMessage(it).asMono() }
+    return embed.flatMap { event.channel.sendMessageEmbeds(it).asMono() }
 }
